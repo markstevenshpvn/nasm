@@ -1,0 +1,220 @@
+; Date: 05/2014
+; Author: Mark Stevens
+;
+;
+
+
+
+%include "linux/asm_io.inc"
+
+
+segment .data
+binary db "01",0
+hex db "0123456789ABCDEF",0
+len equ $-hex
+result dd 0
+final db "Ket qua chuyen doi tu hex -> demical: ",0
+menu db " chon he so cho input: ",10,0
+
+segment .bss
+char resb 100
+returnpow resd 1
+heso resb 1
+
+extern printf
+segment .text
+global asm_main
+asm_main:
+enter 0,0
+pusha
+;
+;Doan nay de get hex digit
+;
+mov eax,menu
+call print_string
+
+mov eax,3
+mov ebx,0
+mov ecx,heso
+mov edx,2
+int 0x80
+
+mov eax,[heso]
+cmp eax,2
+jz doibinary
+
+;
+;	PHAN NAY DE DOI SO HEX
+;
+;
+mov dword [returnpow],1
+mov ebx,0
+gethex:
+call read_char
+mov ecx,len
+
+comparehex:
+cmp al,[hex+ecx-1]
+je goodhex			; neu thuoc hex thi gan vao mang char
+loop comparehex
+cmp ecx,0		; neu ko phai hex thi in so. 
+je in
+
+goodhex:
+mov [char +ebx],al
+inc ebx
+jmp gethex
+;
+;
+;	PHAN NAY DE DOI SO BINARY
+;
+doibinary:
+mov dword [returnpow],1
+mov ebx,0
+getbin:
+call read_char
+mov ecx,len
+
+comparebin:
+cmp al,[binary+ecx-1]
+je goodbin			; neu thuoc hex thi gan vao mang char
+loop comparebin
+cmp ecx,0		; neu ko phai hex thi in so. 
+je in
+
+goodbin:
+mov [char +ebx],al
+inc ebx
+jmp getbin
+
+;
+;
+;
+in:
+mov ecx,ebx
+dec ebx		
+mov edx,0	 
+lac:
+xor eax,eax
+mov al,[char+ebx]
+push returnpow	; address
+push heso	;	; value
+push edx	; value	
+call pow	; CALL POW FUNCTION
+add esp,12
+dec ebx
+inc edx
+push result	; adress of result, it is sum of returnpow x element char/ 
+push returnpow	; address
+push eax	; value
+call multi	; CALL MULTI FUNCTION
+add esp,12
+mov eax,[result]
+loop lac
+;
+; Display final result
+;
+mov edx,eax
+mov eax,final
+call print_string
+mov eax,edx
+call print_int
+
+call print_nl
+mov eax,0
+leave
+ret
+;
+;-------------------------------------------------------------------------------------------
+;
+;	POW FUNCTION
+;
+
+segment .text
+;
+;	Pow, [ebp+16]: address of result
+;	     [ebp+12]: address VALUE, he so (16)
+;	     [ebp+8]:  VALUE, so mu
+
+pow:			; 
+enter 4,0
+pusha
+
+;
+; Doan nay de pow
+;
+
+mov eax,1
+mov ecx,[ebp+12]	; address of heso
+mov byte dl,[ecx]	; byte to dl
+cmp dl,0x39
+jng getso
+sub dl,0x41
+add dl,0xa
+jmp tf
+
+getso:
+sub dl,0x30		; get digit
+
+
+tf:
+mov ecx,edx		; ecx= value
+mov ebx,[ebp+8]		; ebx, value of so mu
+cmp ebx,0
+jz ketqua
+;
+;	Doan nay de tinh pow
+;
+lep:
+mul ecx
+dec ebx
+cmp ebx,0
+jz ketqua
+jmp lep
+;
+;  	Doan nay de in ket qua
+;
+ketqua:
+mov ebx,[ebp+16]	; address of returnpow
+mov [ebx],eax
+
+popa
+leave
+ret
+;
+;-------------------------------------------------------------------------------------------------------------
+;
+;		MULTI FUNCTION
+;	Ham nay nhan pow voi so.
+;
+;
+segment .text
+multi:
+;
+; Can co 2 argument de nhan voi nhau, ok 
+;-> eax [ebp+8], address of returnpow [ebp+12]
+;
+enter 0,0
+pusha
+
+
+mov ebx,[ebp+12]
+mov eax,[ebx]
+mov ecx,[ebp+8]
+cmp ecx,0x39
+jng doi
+sub ecx,0x41
+add ecx,0xa
+jmp tinh
+doi:
+sub ecx,0x30
+
+
+tinh:
+mul ecx
+mov ebx,[ebp+16]	; address of result
+add [ebx],eax
+
+popa
+leave
+ret
