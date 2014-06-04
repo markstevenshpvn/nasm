@@ -7,19 +7,30 @@
 
 %include "linux/asm_io.inc"
 
+;
+;------------------------------------- KHAI BAO DATA -------------------------------------------------
+;
 
 segment .data
 binary db "01",0
 hex db "0123456789ABCDEF",0
 len equ $-hex
 result dd 0
-final db "Ket qua chuyen doi tu hex -> demical: ",0
-menu db " chon he so cho input: ",10,0
+FinalDec db "demical= ",0
+FinalHexBin db " Ket qua= ",0
+Menu db " An 1 demical -> hex/bin, an 2 hex/bin -> demical: ",10,0
+MsgHBToDec db " He so cua input (an 2 he binary, con lai la hex): ",10,0
+MsgDecToHB1 db "He so cua output (nhap '16' hex hoac '2' bin'): ",0
+MsgDecToHB2 db "Nhap so he 10: ",0
+
 
 segment .bss
 char resb 100
 returnpow resd 1
+temp resd 1
+kq resb 100
 heso resb 1
+style resb 1
 
 extern printf
 segment .text
@@ -30,7 +41,24 @@ pusha
 ;
 ;Doan nay de get hex digit
 ;
-mov eax,menu
+;--------------------------------  DOAN NAY DE CHON KIEU CONVERT ---------------------------------------------
+;
+mov eax,Menu
+call print_string
+
+mov eax,3			; Read 
+mov ebx,0			; stdin
+mov ecx,style			; luu vao style
+mov edx,2			; doc 2 byte (de loai bo enter)
+int 0x80
+mov eax,[style]
+cmp al,0x31
+jz hexconvert
+
+
+;------------------------------------------------- CHUONG TRINH CHINH 1 --------------------------------------------
+
+mov eax,MsgHBToDec
 call print_string
 
 mov eax,3
@@ -40,14 +68,15 @@ mov edx,2
 int 0x80
 
 mov eax,[heso]
-cmp eax,2
+cmp eax,0x32
 jz doibinary
 
 ;
-;	PHAN NAY DE DOI SO HEX
+; PHAN NAY DE DOI SO HEX
 ;
 ;
-mov dword [returnpow],1
+mov eax,1
+mov dword [returnpow],eax
 mov ebx,0
 gethex:
 call read_char
@@ -55,9 +84,9 @@ mov ecx,len
 
 comparehex:
 cmp al,[hex+ecx-1]
-je goodhex			; neu thuoc hex thi gan vao mang char
+je goodhex ; neu thuoc hex thi gan vao mang char
 loop comparehex
-cmp ecx,0		; neu ko phai hex thi in so. 
+cmp ecx,0 ; neu ko phai hex thi in so.
 je in
 
 goodhex:
@@ -66,10 +95,11 @@ inc ebx
 jmp gethex
 ;
 ;
-;	PHAN NAY DE DOI SO BINARY
+; PHAN NAY DE DOI SO BINARY
 ;
 doibinary:
-mov dword [returnpow],1
+mov eax,1
+mov dword [returnpow],eax
 mov ebx,0
 getbin:
 call read_char
@@ -77,9 +107,9 @@ mov ecx,len
 
 comparebin:
 cmp al,[binary+ecx-1]
-je goodbin			; neu thuoc hex thi gan vao mang char
+je goodbin ; neu thuoc hex thi gan vao mang char
 loop comparebin
-cmp ecx,0		; neu ko phai hex thi in so. 
+cmp ecx,0 ; neu ko phai hex thi in so.
 je in
 
 goodbin:
@@ -92,22 +122,22 @@ jmp getbin
 ;
 in:
 mov ecx,ebx
-dec ebx		
-mov edx,0	 
+dec ebx
+mov edx,0
 lac:
 xor eax,eax
 mov al,[char+ebx]
-push returnpow	; address
-push heso	;	; value
-push edx	; value	
-call pow	; CALL POW FUNCTION
+push returnpow ; address
+push heso ; ; value
+push edx ; value
+call pow ; CALL POW FUNCTION
 add esp,12
 dec ebx
 inc edx
-push result	; adress of result, it is sum of returnpow x element char/ 
-push returnpow	; address
-push eax	; value
-call multi	; CALL MULTI FUNCTION
+push result ; adress of result, it is sum of returnpow x element char/
+push returnpow ; address
+push eax ; value
+call multi ; CALL MULTI FUNCTION
 add esp,12
 mov eax,[result]
 loop lac
@@ -115,28 +145,26 @@ loop lac
 ; Display final result
 ;
 mov edx,eax
-mov eax,final
+mov eax,FinalDec
 call print_string
 mov eax,edx
 call print_int
 
-call print_nl
-mov eax,0
-leave
-ret
+jmp ketthuc
+
 ;
 ;-------------------------------------------------------------------------------------------
 ;
-;	POW FUNCTION
+; POW FUNCTION
 ;
 
 segment .text
 ;
-;	Pow, [ebp+16]: address of result
-;	     [ebp+12]: address VALUE, he so (16)
-;	     [ebp+8]:  VALUE, so mu
+; Pow, [ebp+16]: address of result
+; [ebp+12]: address VALUE, he so (16)
+; [ebp+8]: VALUE, so mu
 
-pow:			; 
+pow: ;
 enter 4,0
 pusha
 
@@ -145,25 +173,25 @@ pusha
 ;
 
 mov eax,1
-mov ecx,[ebp+12]	; address of heso
-mov byte dl,[ecx]	; byte to dl
-cmp dl,0x39
+mov ecx,[ebp+12] ; address of heso
+mov byte dl,[ecx] ; byte to dl
+cmp dl,0x32
 jng getso
-sub dl,0x41
-add dl,0xa
+mov dl,0x10
 jmp tf
 
 getso:
-sub dl,0x30		; get digit
-
-
+sub dl,0x30 ; get digit
+;
+;	Tf
+;
 tf:
-mov ecx,edx		; ecx= value
-mov ebx,[ebp+8]		; ebx, value of so mu
+mov ecx,edx ; ecx= value
+mov ebx,[ebp+8] ; ebx, value of so mu
 cmp ebx,0
 jz ketqua
 ;
-;	Doan nay de tinh pow
+; Lep (Doan nay de tinh pow)
 ;
 lep:
 mul ecx
@@ -172,10 +200,10 @@ cmp ebx,0
 jz ketqua
 jmp lep
 ;
-;  	Doan nay de in ket qua
+; KetQua ( Doan nay de in ket qua)
 ;
 ketqua:
-mov ebx,[ebp+16]	; address of returnpow
+mov ebx,[ebp+16] ; address of returnpow
 mov [ebx],eax
 
 popa
@@ -184,14 +212,14 @@ ret
 ;
 ;-------------------------------------------------------------------------------------------------------------
 ;
-;		MULTI FUNCTION
-;	Ham nay nhan pow voi so.
+; MULTI FUNCTION
+; Ham nay nhan pow voi so.
 ;
 ;
 segment .text
 multi:
 ;
-; Can co 2 argument de nhan voi nhau, ok 
+; Can co 2 argument de nhan voi nhau, ok
 ;-> eax [ebp+8], address of returnpow [ebp+12]
 ;
 enter 0,0
@@ -206,15 +234,111 @@ jng doi
 sub ecx,0x41
 add ecx,0xa
 jmp tinh
+;
+;	Doi
+;
 doi:
 sub ecx,0x30
-
-
+;
+;	Tinh
+;
 tinh:
 mul ecx
-mov ebx,[ebp+16]	; address of result
+mov ebx,[ebp+16] ; address of result
 add [ebx],eax
 
 popa
+leave
+ret
+;
+;------------------------------CHUONG TRINH CHINH 2----------------------------------------------------
+;
+; PHAN NAY DOI TU 10 SANG HEX, BIN
+;
+;	HexConvert
+;
+hexconvert: 
+mov eax,MsgDecToHB1
+call print_string
+call read_int
+mov [heso],eax
+mov eax,MsgDecToHB2
+call print_string
+call read_int
+
+mov ebx,0
+mov ecx,[heso]
+;
+;	LaBel1
+;
+label1:
+xor edx,edx
+cmp eax,0
+jz thoat
+div ecx		; so du store tai edx
+push ebx
+push kq
+push edx
+call CheckRemain
+add esp,12
+inc ebx
+jmp label1
+;
+;	Thoat
+;
+thoat:
+mov ecx,ebx
+dec ebx
+mov eax,FinalHexBin
+call print_string
+;
+;	LaBel2
+;
+label2:
+mov eax,[kq+ebx]
+call print_char
+dec ebx
+loop label2
+
+jmp ketthuc
+;------------------ HAM GAN SO DU va DOI SO HEX SANG KY TU -----------------------------------------
+
+segment .text
+CheckRemain:
+;
+;	[ebp+8]: VALUE EDX (REMAIN), [ebp+12]: ADDRESS of ARRAY, [ebp+16]: VALUE EBX (INDEX)
+;
+;
+enter 4,0
+pusha
+
+mov eax,[ebp+8]
+cmp eax,9
+jg doihex
+add eax,0x30
+jmp assign
+;
+;	DoiHex
+;
+doihex:
+sub eax,10
+add eax,0x41
+;
+;	Assign
+;
+assign:
+mov ebx,[ebp+12]	; address
+add ebx,[ebp+16]
+mov [ebx],al
+
+popa
+leave
+ret
+;
+;	KetThuc
+;
+ketthuc: 
+call print_nl
+mov eax,0
 leave
 ret
